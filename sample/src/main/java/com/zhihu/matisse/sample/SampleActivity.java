@@ -19,7 +19,9 @@ import android.Manifest;
 import android.annotation.SuppressLint;
 import android.content.Intent;
 import android.content.pm.ActivityInfo;
+import android.content.pm.PackageManager;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.LayoutInflater;
@@ -32,11 +34,12 @@ import androidx.activity.result.ActivityResult;
 import androidx.activity.result.ActivityResultCallback;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
+import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.content.ContextCompat;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
-import com.tbruyelle.rxpermissions2.RxPermissions;
 import com.zhihu.matisse.Matisse;
 import com.zhihu.matisse.MimeType;
 import com.zhihu.matisse.engine.impl.GlideEngine;
@@ -48,28 +51,35 @@ import java.util.List;
 
 public class SampleActivity extends AppCompatActivity implements View.OnClickListener {
 
-
     private UriAdapter mAdapter;
     private Matisse matisse;
     private final ActivityResultLauncher<Intent> captureLauncher = registerForActivityResult(
-        new ActivityResultContracts.StartActivityForResult(),
-        new ActivityResultCallback<ActivityResult>() {
-            @Override public void onActivityResult(ActivityResult result) {
-                Intent data = result.getData();
-                mAdapter.setData(Matisse.obtainResult(data), Matisse.obtainPathResult(data));
-                Log.e("On capture  ", String.valueOf(Matisse.obtainOriginalState(data)));
-            }
-        });
+            new ActivityResultContracts.StartActivityForResult(),
+            new ActivityResultCallback<ActivityResult>() {
+                @Override
+                public void onActivityResult(ActivityResult result) {
+                    Intent data = result.getData();
+                    mAdapter.setData(Matisse.obtainResult(data), Matisse.obtainPathResult(data));
+                    Log.e("On capture  ", String.valueOf(Matisse.obtainOriginalState(data)));
+                }
+            });
 
     private final ActivityResultLauncher<Intent> pickerLauncher = registerForActivityResult(
-        new ActivityResultContracts.StartActivityForResult(),
-        new ActivityResultCallback<ActivityResult>() {
-            @Override public void onActivityResult(ActivityResult result) {
-                Intent data = result.getData();
-                mAdapter.setData(Matisse.obtainResult(data), Matisse.obtainPathResult(data));
-                Log.e("OnActivityResult ", String.valueOf(Matisse.obtainOriginalState(data)));
-            }
-        });
+            new ActivityResultContracts.StartActivityForResult(),
+            new ActivityResultCallback<ActivityResult>() {
+                @Override
+                public void onActivityResult(ActivityResult result) {
+                    Intent data = result.getData();
+                    if (data == null) {
+                        Log.e("OnActivityResult", "data null");
+                    } else {
+                        List<Uri> uris = Matisse.obtainResult(data);
+                        mAdapter.setData(uris, Matisse.obtainPathResult(data));
+                        Log.e("OnActivityResult ", String.valueOf(Matisse.obtainOriginalState(data)));
+                    }
+                }
+            });
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -84,33 +94,80 @@ public class SampleActivity extends AppCompatActivity implements View.OnClickLis
         recyclerView.setAdapter(mAdapter = new UriAdapter());
 
         matisse = Matisse.from(SampleActivity.this);
-            //.registerCapture(result -> {
-            //    Intent data = result.getData();
-            //    mAdapter.setData(Matisse.obtainResult(data), Matisse.obtainPathResult(data));
-            //    Log.e("OnActivityResult ", String.valueOf(Matisse.obtainOriginalState(data)));
-            //});
+        //.registerCapture(result -> {
+        //    Intent data = result.getData();
+        //    mAdapter.setData(Matisse.obtainResult(data), Matisse.obtainPathResult(data));
+        //    Log.e("OnActivityResult ", String.valueOf(Matisse.obtainOriginalState(data)));
+        //});
     }
+
+    private View view = null;
 
     // <editor-fold defaultstate="collapsed" desc="onClick">
     @SuppressLint("CheckResult")
     @Override
     public void onClick(final View v) {
-        RxPermissions rxPermissions = new RxPermissions(this);
-        rxPermissions.request(Manifest.permission.WRITE_EXTERNAL_STORAGE).subscribe(aBoolean -> {
-            if (aBoolean) {
-                startAction(v);
-            } else {
-                Toast.makeText(SampleActivity.this, R.string.permission_request_denied, Toast.LENGTH_LONG).show();
-            }
-        }, Throwable::printStackTrace);
+        view = v;
+        if (isPermissionsGranted()) {
+            startAction(view);
+        } else {
+            requestPermissions(getPermissions());
+        }
+    }
+
+    private boolean isPermissionsGranted() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            return ContextCompat.checkSelfPermission(
+                    this,
+                    Manifest.permission.READ_MEDIA_VIDEO
+            ) == PackageManager.PERMISSION_GRANTED &&
+                    ContextCompat.checkSelfPermission(
+                            this,
+                            Manifest.permission.READ_MEDIA_IMAGES
+                    ) == PackageManager.PERMISSION_GRANTED;
+        } else {
+            return ContextCompat.checkSelfPermission(
+                    this,
+                    Manifest.permission.READ_EXTERNAL_STORAGE
+            ) == PackageManager.PERMISSION_GRANTED;
+        }
+    }
+
+    private String[] getPermissions() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            return new String[]{
+                    Manifest.permission.READ_MEDIA_VIDEO,
+                    Manifest.permission.READ_MEDIA_IMAGES
+            };
+        } else {
+            return new String[]{
+                    Manifest.permission.READ_EXTERNAL_STORAGE
+            };
+        }
+    }
+
+    private void requestPermissions(String[] permissions) {
+        requestPermissionLauncher.launch(permissions);
     }
     // </editor-fold>
 
+    ActivityResultLauncher<String[]> requestPermissionLauncher = registerForActivityResult(new ActivityResultContracts.RequestMultiplePermissions(),
+            permissions -> {
+                boolean isGranted = !permissions.containsValue(false);
+                if (isGranted) {
+                    startAction(view);
+                } else {
+                    Toast.makeText(SampleActivity.this, R.string.permission_request_denied, Toast.LENGTH_LONG).show();
+                }
+            });
+
+
+    @SuppressLint("NonConstantResourceId")
     private void startAction(View v) {
         switch (v.getId()) {
             case R.id.capture:
                 matisse.performCapture(new CaptureStrategy(true, "com.zhihu.matisse.sample.fileprovider",
-                                "test"), captureLauncher);
+                        "test"), captureLauncher);
                 break;
             case R.id.zhihu:
                 Matisse.from(SampleActivity.this)
@@ -183,6 +240,7 @@ public class SampleActivity extends AppCompatActivity implements View.OnClickLis
             notifyDataSetChanged();
         }
 
+        @NonNull
         @Override
         public UriViewHolder onCreateViewHolder(ViewGroup parent, int viewType) {
             return new UriViewHolder(LayoutInflater.from(parent.getContext()).inflate(R.layout.uri_item, parent, false));
@@ -204,8 +262,8 @@ public class SampleActivity extends AppCompatActivity implements View.OnClickLis
 
         static class UriViewHolder extends RecyclerView.ViewHolder {
 
-            private TextView mUri;
-            private TextView mPath;
+            private final TextView mUri;
+            private final TextView mPath;
 
             UriViewHolder(View contentView) {
                 super(contentView);

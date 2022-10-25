@@ -14,6 +14,11 @@
   limitations under the License.
   -->
 <resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="MissingTranslation">
+    <plurals name="error_over_count">
+        <item quantity="one">You cannot pick more than %1$d file</item>
+        <item quantity="other">You can not pick more than %1$d files</item>
+    </plurals>
+
     <string name="album_name_all">All Media</string>
 
     <string name="button_preview">Preview</string>

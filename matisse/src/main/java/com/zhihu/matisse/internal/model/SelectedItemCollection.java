@@ -177,12 +177,7 @@ public class SelectedItemCollection {
                         maxSelectable,
                         maxSelectable
                 );
-            } catch (Resources.NotFoundException e) {
-                cause = mContext.getString(
-                        R.string.error_over_count,
-                        maxSelectable
-                );
-            } catch (NoClassDefFoundError e) {
+            } catch (Resources.NotFoundException | NoClassDefFoundError e) {
                 cause = mContext.getString(
                         R.string.error_over_count,
                         maxSelectable
